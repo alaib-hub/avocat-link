@@ -1,0 +1,131 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  position: relative;
+  padding: calc(var(--navbar-h) + var(--space-12)) 0 var(--space-12);
+  background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-mid) 100%);
+  overflow: hidden;
+}
+
+.headerBg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 60%, rgba(1,98,51,0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba(201,168,76,0.1) 0%, transparent 40%);
+}
+
+.headerContent {
+  position: relative;
+  z-index: 1;
+}
+
+.headerTitle {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 5vw, 3rem);
+  color: white;
+  margin-bottom: var(--space-3);
+}
+
+.headerSub {
+  font-size: 1.0625rem;
+  color: rgba(255,255,255,0.7);
+  max-width: 520px;
+}
+
+/* Filters */
+.filtersSection {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) 0;
+  position: sticky;
+  top: var(--navbar-h);
+  z-index: 100;
+  box-shadow: var(--shadow-xs);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.searchGroup {
+  flex: 1;
+  min-width: 220px;
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.9rem;
+  z-index: 1;
+}
+
+.searchInput {
+  padding-left: 40px !important;
+}
+
+/* Results */
+.resultsHeader {
+  margin-bottom: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.count {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-6);
+}
+
+/* Skeleton */
+.skeletonCard {
+  height: 280px;
+}
+
+/* Empty state */
+.empty {
+  text-align: center;
+  padding: var(--space-20) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.emptyIcon {
+  font-size: 3rem;
+  opacity: 0.4;
+}
+
+.empty h3 {
+  font-size: 1.25rem;
+  color: var(--color-navy);
+}
+
+.empty p {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .filters { gap: var(--space-2); }
+  .searchGroup { min-width: 100%; }
+}
