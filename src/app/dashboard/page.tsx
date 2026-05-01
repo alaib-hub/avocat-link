@@ -16,24 +16,6 @@ const STATUS_MAP: Record<string, { label: string; badge: string }> = {
   annulee:     { label: 'Annulée',     badge: 'badge-error'   },
 }
 
-// Mock consultations for demo
-const MOCK_CONSULTATIONS: Consultation[] = [
-  {
-    id: 'c1', client_id: 'u1', avocat_id: '1',
-    date_consultation: new Date(Date.now() + 86400000 * 3).toISOString(),
-    statut: 'confirmee', description: 'Affaire de divorce et garde d\'enfants.',
-    fichier_url: null, created_at: new Date().toISOString(),
-    avocat: { id: '1', full_name: 'Karim Mouloud', specialite: 'Droit de la famille', wilaya: 'Alger', barreau: 'Alger', experience_years: 12, tarif_consultation: 5000, bio: '', photo_url: null, disponible: true, created_at: '' },
-  },
-  {
-    id: 'c2', client_id: 'u1', avocat_id: '2',
-    date_consultation: new Date(Date.now() + 86400000 * 10).toISOString(),
-    statut: 'en_attente', description: 'Création d\'une SARL et rédaction des statuts.',
-    fichier_url: null, created_at: new Date().toISOString(),
-    avocat: { id: '2', full_name: 'Samira Benali', specialite: 'Droit commercial', wilaya: 'Oran', barreau: 'Oran', experience_years: 8, tarif_consultation: 7000, bio: '', photo_url: null, disponible: true, created_at: '' },
-  },
-]
-
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('fr-DZ', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -46,29 +28,62 @@ export default function DashboardPage() {
   const supabase = createClient()
 
   const [user, setUser] = useState<any>(null)
+  const [avocatProfile, setAvocatProfile] = useState<any>(null)
   const [consultations, setConsultations] = useState<Consultation[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'toutes' | 'en_attente' | 'confirmee' | 'terminee'>('toutes')
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.push('/auth/login'); return }
       setUser(data.user)
 
-      const { data: consults } = await supabase
-        .from('consultations')
-        .select('*, avocat:avocats(*)')
-        .eq('client_id', data.user.id)
-        .order('date_consultation', { ascending: true })
+      // Check if user is an avocat
+      const { data: avocatData } = await supabase
+        .from('avocats')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .single()
 
-      if (consults && consults.length > 0) {
-        setConsultations(consults)
+      if (avocatData) {
+        setAvocatProfile(avocatData)
+        // Fetch consultations where they are the avocat
+        const { data: consults } = await supabase
+          .from('consultations')
+          .select('*, client:profiles(*)')
+          .eq('avocat_id', avocatData.id)
+          .order('date_consultation', { ascending: true })
+
+        if (consults) setConsultations(consults)
       } else {
-        setConsultations(MOCK_CONSULTATIONS)
+        // Fetch consultations where they are the client
+        const { data: consults } = await supabase
+          .from('consultations')
+          .select('*, avocat:avocats(*)')
+          .eq('client_id', data.user.id)
+          .order('date_consultation', { ascending: true })
+
+        if (consults) setConsultations(consults)
       }
       setLoading(false)
     })
   }, [])
+
+  const handleUpdateStatus = async (consultationId: string, newStatus: string) => {
+    setStatusUpdating(consultationId)
+    const { error } = await supabase
+      .from('consultations')
+      .update({ statut: newStatus })
+      .eq('id', consultationId)
+
+    if (!error) {
+      setConsultations(prev => 
+        prev.map(c => c.id === consultationId ? { ...c, statut: newStatus as any } : c)
+      )
+    }
+    setStatusUpdating(null)
+  }
 
   const filtered = activeTab === 'toutes'
     ? consultations
@@ -82,6 +97,7 @@ export default function DashboardPage() {
   }
 
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Client'
+  const isAvocat = !!avocatProfile
 
   return (
     <div className={styles.page}>
@@ -91,17 +107,25 @@ export default function DashboardPage() {
       <section className={styles.header}>
         <div className={styles.headerBg} />
         <div className={`container ${styles.headerContent}`}>
+          {isAvocat && avocatProfile.statut_verification === 'en_attente' && (
+            <div className="alert alert-warning" style={{ marginBottom: '20px' }}>
+              <span>⏳</span> Votre compte avocat est en attente de vérification par un administrateur. Vous n'êtes pas encore visible dans l'annuaire public.
+            </div>
+          )}
+
           <div className={styles.headerTop}>
             <div className={styles.welcome}>
               <DefaultAvatar size={56} />
               <div>
-                <p className={styles.welcomeLabel}>Bienvenue,</p>
-                <h1 className={styles.welcomeName}>{userName}</h1>
+                <p className={styles.welcomeLabel}>{isAvocat ? 'Espace Avocat' : 'Bienvenue,'}</p>
+                <h1 className={styles.welcomeName}>{isAvocat ? `Maître ${userName}` : userName}</h1>
               </div>
             </div>
-            <Link href="/consultation/new" className="btn btn-gold" id="new-consultation-btn">
-              + Nouvelle consultation
-            </Link>
+            {!isAvocat && (
+              <Link href="/consultation/new" className="btn btn-gold" id="new-consultation-btn">
+                + Nouvelle consultation
+              </Link>
+            )}
           </div>
 
           {/* Summary cards */}
@@ -156,26 +180,28 @@ export default function DashboardPage() {
               <span className={styles.emptyIcon}>📭</span>
               <h3>Aucune consultation</h3>
               <p>Vous n'avez pas encore de consultations dans cette catégorie.</p>
-              <Link href="/avocats" className="btn btn-primary" id="browse-from-empty" style={{ marginTop: 'var(--space-4)' }}>
-                Trouver un avocat
-              </Link>
+              {!isAvocat && (
+                <Link href="/avocats" className="btn btn-primary" id="browse-from-empty" style={{ marginTop: 'var(--space-4)' }}>
+                  Trouver un avocat
+                </Link>
+              )}
             </div>
           ) : (
             <div className={styles.list}>
               {filtered.map((c) => {
                 const status = STATUS_MAP[c.statut] ?? STATUS_MAP.en_attente
+                const displayName = isAvocat 
+                  ? `Client: ${c.client?.full_name || 'Inconnu'}`
+                  : `Maître ${c.avocat?.full_name ?? 'Avocat'}`
+                const displaySubtitle = isAvocat ? c.client?.phone : c.avocat?.specialite
+
                 return (
                   <article key={c.id} className={styles.consultCard}>
                     <div className={styles.consultLeft}>
-                      {c.avocat?.photo_url
-                        ? <img src={c.avocat.photo_url} alt={c.avocat.full_name} className={styles.consultPhoto} />
-                        : <DefaultAvatar size={52} />
-                      }
+                      <DefaultAvatar size={52} />
                       <div className={styles.consultInfo}>
-                        <h3 className={styles.consultAvocat}>
-                          Maître {c.avocat?.full_name ?? 'Avocat'}
-                        </h3>
-                        <span className={styles.consultSpec}>{c.avocat?.specialite}</span>
+                        <h3 className={styles.consultAvocat}>{displayName}</h3>
+                        <span className={styles.consultSpec}>{displaySubtitle}</span>
                         <span className={styles.consultDate}>
                           📅 {formatDate(c.date_consultation)}
                         </span>
@@ -184,6 +210,7 @@ export default function DashboardPage() {
                     </div>
                     <div className={styles.consultRight}>
                       <span className={`badge ${status.badge}`}>{status.label}</span>
+                      
                       {c.fichier_url && (
                         <a
                           href={c.fichier_url}
@@ -192,12 +219,46 @@ export default function DashboardPage() {
                           className="btn btn-ghost btn-sm"
                           id={`view-file-${c.id}`}
                         >
-                          📄 Dossier
+                          📄 Dossier de preuve
                         </a>
                       )}
-                      <span className={styles.consultTarif}>
-                        {c.avocat?.tarif_consultation?.toLocaleString('fr-DZ')} DA
-                      </span>
+                      
+                      {isAvocat && c.statut === 'en_attente' && (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            disabled={statusUpdating === c.id}
+                            onClick={() => handleUpdateStatus(c.id, 'confirmee')}
+                          >
+                            Accepter
+                          </button>
+                          <button 
+                            className="btn btn-outline btn-sm" 
+                            disabled={statusUpdating === c.id}
+                            style={{ borderColor: 'red', color: 'red' }}
+                            onClick={() => handleUpdateStatus(c.id, 'annulee')}
+                          >
+                            Refuser
+                          </button>
+                        </div>
+                      )}
+
+                      {isAvocat && c.statut === 'confirmee' && (
+                        <button 
+                          className="btn btn-outline btn-sm" 
+                          disabled={statusUpdating === c.id}
+                          onClick={() => handleUpdateStatus(c.id, 'terminee')}
+                          style={{ marginTop: '8px' }}
+                        >
+                          Marquer terminée
+                        </button>
+                      )}
+
+                      {!isAvocat && (
+                        <span className={styles.consultTarif}>
+                          {c.avocat?.tarif_consultation?.toLocaleString('fr-DZ')} DA
+                        </span>
+                      )}
                     </div>
                   </article>
                 )

@@ -39,4 +39,5 @@ export type Consultation = {
   fichier_url: string | null
   created_at: string
   avocat?: Avocat
+  client?: Profile
 }

@@ -20,6 +20,8 @@ export default function RegisterPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  const [role, setRole] = useState<'client' | 'avocat'>('client')
+  
   const [form, setForm] = useState({
     full_name: '',
     email: '',
@@ -27,7 +29,13 @@ export default function RegisterPage() {
     wilaya: '',
     password: '',
     confirm: '',
+    // Avocat specific fields
+    specialite: '',
+    barreau: '',
+    tarif_consultation: 5000,
+    experience_years: 1,
   })
+  
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -71,13 +79,39 @@ export default function RegisterPage() {
 
     // Insert into profiles table
     if (data.user) {
-      await supabase.from('profiles').upsert({
+      const { error: profileError } = await supabase.from('profiles').upsert({
         id: data.user.id,
         full_name: form.full_name,
         email: form.email,
         phone: form.phone,
         wilaya: form.wilaya,
       })
+
+      if (profileError) {
+        setError(`Erreur profil: ${profileError.message}`)
+        setLoading(false)
+        return
+      }
+
+      // If user registered as avocat, insert into avocats table
+      if (role === 'avocat') {
+        const { error: avocatError } = await supabase.from('avocats').insert({
+          user_id: data.user.id,
+          full_name: form.full_name,
+          wilaya: form.wilaya,
+          specialite: form.specialite,
+          barreau: form.barreau,
+          tarif_consultation: Number(form.tarif_consultation),
+          experience_years: Number(form.experience_years),
+          statut_verification: 'en_attente'
+        })
+        
+        if (avocatError) {
+          setError(`Erreur avocat: ${avocatError.message}`)
+          setLoading(false)
+          return
+        }
+      }
     }
 
     setSuccess(true)
@@ -91,8 +125,10 @@ export default function RegisterPage() {
           <div className={styles.successIcon}>✅</div>
           <h2 className={styles.successTitle}>Inscription réussie !</h2>
           <p className={styles.successText}>
-            Vérifiez votre boîte mail pour confirmer votre adresse email.
-            Après confirmation, vous pourrez vous connecter.
+            {role === 'avocat' 
+              ? "Votre demande de compte Avocat a bien été reçue. Un administrateur vérifiera votre profil prochainement."
+              : "Vérifiez votre boîte mail pour confirmer votre adresse email. Après confirmation, vous pourrez vous connecter."
+            }
           </p>
           <Link href="/auth/login" className="btn btn-primary btn-lg" id="go-to-login-after-register">
             Se connecter
@@ -141,6 +177,23 @@ export default function RegisterPage() {
                 Se connecter
               </Link>
             </p>
+          </div>
+
+          <div className={styles.roleTabs} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <button 
+              className={`btn ${role === 'client' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setRole('client')}
+              style={{ flex: 1 }}
+            >
+              Je suis un Client
+            </button>
+            <button 
+              className={`btn ${role === 'avocat' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setRole('avocat')}
+              style={{ flex: 1 }}
+            >
+              Je suis un Avocat
+            </button>
           </div>
 
           {error && (
@@ -218,6 +271,73 @@ export default function RegisterPage() {
               </select>
             </div>
 
+            {role === 'avocat' && (
+              <>
+                <div className={styles.formRow}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-specialite">
+                      Spécialité Principale <span>*</span>
+                    </label>
+                    <input
+                      id="reg-specialite"
+                      name="specialite"
+                      type="text"
+                      className="form-input"
+                      placeholder="Ex: Droit de la famille"
+                      value={form.specialite}
+                      onChange={handleChange}
+                      required={role === 'avocat'}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-barreau">
+                      Barreau <span>*</span>
+                    </label>
+                    <input
+                      id="reg-barreau"
+                      name="barreau"
+                      type="text"
+                      className="form-input"
+                      placeholder="Ex: Alger"
+                      value={form.barreau}
+                      onChange={handleChange}
+                      required={role === 'avocat'}
+                    />
+                  </div>
+                </div>
+                <div className={styles.formRow}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-tarif">
+                      Tarif (DA) <span>*</span>
+                    </label>
+                    <input
+                      id="reg-tarif"
+                      name="tarif_consultation"
+                      type="number"
+                      className="form-input"
+                      value={form.tarif_consultation}
+                      onChange={handleChange}
+                      required={role === 'avocat'}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-exp">
+                      Expérience (Années) <span>*</span>
+                    </label>
+                    <input
+                      id="reg-exp"
+                      name="experience_years"
+                      type="number"
+                      className="form-input"
+                      value={form.experience_years}
+                      onChange={handleChange}
+                      required={role === 'avocat'}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className={styles.formRow}>
               <div className="form-group">
                 <label className="form-label" htmlFor="reg-password">
@@ -259,7 +379,7 @@ export default function RegisterPage() {
               disabled={loading}
               id="register-submit"
             >
-              {loading ? <span className="spinner" /> : 'Créer mon compte gratuitement'}
+              {loading ? <span className="spinner" /> : 'Créer mon compte'}
             </button>
           </form>
 

@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS public.consultations (
   statut              TEXT DEFAULT 'en_attente'
                       CHECK (statut IN ('en_attente', 'confirmee', 'terminee', 'annulee')),
   description         TEXT,
-  Dossierpreuve_url         TEXT,      -- URL from Supabase Storage
+  dossiers_url         TEXT,      -- URL from Supabase Storage
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
